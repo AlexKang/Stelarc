@@ -1,24 +1,17 @@
 package orcaninjas.stelarc;
 
 import android.content.Context;
-import android.os.Bundle;
 
 import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.wearable.Node;
 import com.google.android.gms.wearable.NodeApi;
 import com.google.android.gms.wearable.Wearable;
 
-import java.util.List;
-
-public class WatchMessenger implements GoogleApiClient.ConnectionCallbacks {
+public class WatchMessenger {
 
     private static WatchMessenger instance;
 
     private Context context;
-    private GoogleApiClient googleApiClient;
-    private List<Node> nodes;
-    private String pendingMessage;
 
     public static WatchMessenger getInstance(Context context) {
         if (instance == null) {
@@ -32,42 +25,27 @@ public class WatchMessenger implements GoogleApiClient.ConnectionCallbacks {
         this.context = context;
     }
 
-    @Override
-    public void onConnected(Bundle bundle) {
-        Wearable.NodeApi.getConnectedNodes(googleApiClient)
-                .setResultCallback(new ResultCallback<NodeApi.GetConnectedNodesResult>() {
-                    @Override
-                    public void onResult(NodeApi.GetConnectedNodesResult getConnectedNodesResult) {
-                        nodes = getConnectedNodesResult.getNodes();
-                        if (pendingMessage != null) {
-                            sendMessage(pendingMessage);
-                            pendingMessage = null;
-                        }
-                    }
-                });
+    private GoogleApiClient getGoogleApiClient() {
+        GoogleApiClient client = new GoogleApiClient.Builder(context)
+                .addApi(Wearable.API)
+                .build();
+        client.blockingConnect();
+
+        return client;
     }
 
-    @Override
-    public void onConnectionSuspended(int i) {
-        googleApiClient.disconnect();
-        googleApiClient = null;
-        nodes = null;
-    }
-
-    public void sendMessage(String message) {
-        if (nodes == null) {
-            pendingMessage = message;
-            googleApiClient = new GoogleApiClient.Builder(context)
-                    .addApi(Wearable.API)
-                    .addConnectionCallbacks(this)
-                    .build();
-            googleApiClient.connect();
-        } else {
-            for (Node node : nodes) {
-                Wearable.MessageApi.sendMessage(
-                        googleApiClient, node.getId(), message, null);
+    public void sendMessage(final String message) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                GoogleApiClient client = getGoogleApiClient();
+                NodeApi.GetConnectedNodesResult result = Wearable.NodeApi.getConnectedNodes(client).await();
+                for (Node node: result.getNodes()) {
+                    Wearable.MessageApi.sendMessage(client, node.getId(), message, null);
+                }
+                client.disconnect();
             }
-        }
+        }).start();
     }
 
 }

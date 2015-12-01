@@ -12,6 +12,12 @@ public class PhoneListenerService extends WearableListenerService {
     @Override
     public void onMessageReceived(MessageEvent messageEvent) {
         Log.d(TAG, String.format("Messaged received: %s", messageEvent.getPath()));
+        switch (messageEvent.getPath()) {
+            case "/ack":
+                if (IdActivity.getInstance() != null) {
+                    IdActivity.startRecording();
+                }
+        }
     }
 
 }
